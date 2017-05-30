@@ -1,0 +1,15 @@
+{
+    "v1": {
+        "app_function": "app.app",
+        "domain": "",
+        "certificate_arn": "",
+        "role_name": "",
+        "s3_bucket": "",
+        "project_name": "access-es",
+
+        "environment_variables": {
+            "ES_HOSTNAME": "",
+            "DYNAMODB_TABLE": ""
+        }
+    }
+}
