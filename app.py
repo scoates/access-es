@@ -58,10 +58,10 @@ def _check_login(username=None, password=None, expires=False):
     if not username or not password:
         return False
 
-    logger.info("Expires: {} {} {}".format(expires, time.time(), expires - time.time()))
+    logger.debug("Expires: {} {} {}".format(expires, time.time(), expires - time.time()))
     if username and password and expires:
         if expires > time.time():
-            logger.info('Unexpired session; skipping Dynamo')
+            logger.debug('Unexpired session; skipping Dynamo')
             return True
 
 
