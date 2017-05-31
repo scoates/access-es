@@ -162,9 +162,4 @@ if __name__ == '__main__':
     if os.environ.get('DEBUG', False):
         logging.basicConfig(level=logging.DEBUG)
 
-    # this is pretty slow for the initial kibana load
-    # to get this to load, you'll need to `pip install gevent` in your venv
-    # ...but don't deploy gevent with zappa
-    from gevent.wsgi import WSGIServer
-    http_server = WSGIServer(('127.0.0.1', 5000), app)
-    http_server.serve_forever()
+    app.run(debug=os.environ.get('DEBUG', False))
