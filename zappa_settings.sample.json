@@ -6,10 +6,12 @@
         "role_name": "",
         "s3_bucket": "",
         "project_name": "access-es",
+        "timeout_seconds": 180,
 
         "environment_variables": {
             "ES_HOSTNAME": "",
-            "DYNAMODB_TABLE": ""
+            "DYNAMODB_TABLE": "",
+            "SESSION_SECRET": "",
         }
     }
 }
