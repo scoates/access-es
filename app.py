@@ -154,7 +154,7 @@ def proxy_request(path, **kwargs):
         headers=headers,
         stream=True
     )
-    return Response(stream_with_context(req.iter_content()), content_type = req.headers['content-type'])
+    return Response(stream_with_context(req.iter_content(chunk_size=None)), content_type = req.headers['content-type'])
 
 
 if __name__ == '__main__':
