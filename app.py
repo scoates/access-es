@@ -10,12 +10,15 @@ from base64 import b64decode
 import os
 from bcrypt import hashpw, gensalt
 import time
-
+from uuid import uuid4
+from urllib.parse import urlparse
 
 logger = logging.getLogger()
 
 app = Flask(__name__, static_folder=None)
 app.secret_key = os.environ['SESSION_SECRET']  # intentionally not guarded so it fails, for now
+
+overflow_bucket = os.environ['OVERFLOW_BUCKET']  # intentionally not guarded so it fails, for now
 
 aws_default_region = os.environ.get("AWS_REGION", "us-east-1")
 
@@ -25,6 +28,7 @@ aws_region = os.environ.get("ES_REGION", aws_default_region)
 boto_session = boto3.session.Session(region_name=aws_region)
 credentials = boto_session.get_credentials().get_frozen_credentials()
 session_recheck = int(os.environ.get("SESSION_RECHECK", 300))  # recheck the session every 5 mins
+overflow_size = 5 * 1024 * 1024  # 5MB
 
 # from https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers#hbh
 EXCLUDED_HEADERS = set([
@@ -143,18 +147,41 @@ def proxy_request(path, **kwargs):
         aws_service='es'
     )
 
-    logger.debug("AWSAUTH:")
-    logger.debug(awsauth)
-
     req = method(
         target_url,
         auth=awsauth,
         params=request.query_string,
         data=request.data,
         headers=headers,
-        stream=True
+        stream=False
     )
-    return Response(stream_with_context(req.iter_content(chunk_size=None)), content_type = req.headers['content-type'])
+
+    content = req.content
+
+    if len(content) > overflow_size:
+
+        u = urlparse(target_url)
+        if '.' in u.path:
+            filename = str(uuid4()) + '.' + u.path.split('.')[-1]
+        else:
+            filename = str(uuid4())
+
+        s3 = boto3.resource('s3')
+        s3_client = boto3.client('s3')
+
+        bucket = s3.Bucket(overflow_bucket)
+        obj = bucket.put_object(
+            Key=filename,
+            Body=content,
+            ACL='authenticated-read',
+            ContentType=req.headers['content-type']
+        )
+        url = s3_client.generate_presigned_url('get_object', Params = {'Bucket': bucket_name, 'Key': filename}, ExpiresIn=30)
+
+        return redirect(url, 303)
+
+    else:
+        return Response(content, content_type=req.headers['content-type'])
 
 
 if __name__ == '__main__':
