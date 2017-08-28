@@ -12,6 +12,7 @@
             "ES_HOSTNAME": "",
             "DYNAMODB_TABLE": "",
             "SESSION_SECRET": "",
+            "OVERFLOW_BUCKET": "",
         }
     }
 }
