@@ -5,6 +5,7 @@ import boto3
 from botocore.credentials import Credentials as BotoCredentials
 from botocore.exceptions import ClientError
 from boto3.dynamodb.conditions import Key
+from botocore.client import Config
 from aws_requests_auth.aws_auth import AWSRequestsAuth
 from base64 import b64decode
 import os
@@ -28,7 +29,7 @@ aws_region = os.environ.get("ES_REGION", aws_default_region)
 boto_session = boto3.session.Session(region_name=aws_region)
 credentials = boto_session.get_credentials().get_frozen_credentials()
 session_recheck = int(os.environ.get("SESSION_RECHECK", 300))  # recheck the session every 5 mins
-overflow_size = 5 * 1024 * 1024  # 5MB
+overflow_size = int(os.environ.get("OVERFLOW_SIZE", 5 * 1024 * 1024))  # 5MB
 
 # from https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers#hbh
 EXCLUDED_HEADERS = set([
@@ -167,7 +168,7 @@ def proxy_request(path, **kwargs):
             filename = str(uuid4())
 
         s3 = boto3.resource('s3')
-        s3_client = boto3.client('s3')
+        s3_client = boto3.client('s3', config=Config(signature_version='s3v4'))
 
         bucket = s3.Bucket(overflow_bucket)
         obj = bucket.put_object(
@@ -176,7 +177,7 @@ def proxy_request(path, **kwargs):
             ACL='authenticated-read',
             ContentType=req.headers['content-type']
         )
-        url = s3_client.generate_presigned_url('get_object', Params = {'Bucket': bucket_name, 'Key': filename}, ExpiresIn=30)
+        url = s3_client.generate_presigned_url('get_object', Params = {'Bucket': overflow_bucket, 'Key': filename}, ExpiresIn=60)
 
         return redirect(url, 303)
 
