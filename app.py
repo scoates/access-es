@@ -19,8 +19,6 @@ logger = logging.getLogger()
 app = Flask(__name__, static_folder=None)
 app.secret_key = os.environ['SESSION_SECRET']  # intentionally not guarded so it fails, for now
 
-overflow_bucket = os.environ['OVERFLOW_BUCKET']  # intentionally not guarded so it fails, for now
-
 aws_default_region = os.environ.get("AWS_REGION", "us-east-1")
 
 remote_hostname = os.environ.get("ES_HOSTNAME")
@@ -30,6 +28,7 @@ boto_session = boto3.session.Session(region_name=aws_region)
 credentials = boto_session.get_credentials().get_frozen_credentials()
 session_recheck = int(os.environ.get("SESSION_RECHECK", 300))  # recheck the session every 5 mins
 overflow_size = int(os.environ.get("OVERFLOW_SIZE", 5 * 1024 * 1024))  # 5MB
+overflow_bucket = os.environ.get('OVERFLOW_BUCKET', None)  # intentionally not guarded so it fails, for now
 
 # from https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers#hbh
 EXCLUDED_HEADERS = set([
@@ -139,6 +138,7 @@ def proxy_request(path, **kwargs):
         k: v for (k, v) in request.headers.items() if k not in EXCLUDED_HEADERS
     }
 
+    # authentication with which to sign the requests request
     awsauth = AWSRequestsAuth(
         aws_access_key=credentials.access_key,
         aws_secret_access_key=credentials.secret_key,
@@ -159,8 +159,14 @@ def proxy_request(path, **kwargs):
 
     content = req.content
 
-    if len(content) > overflow_size:
+    if overflow_bucket is not None and len(content) > overflow_size:
 
+        # the response would be bigger than overflow_size, so instead of trying to serve it,
+        # we'll put the resulting body on S3, and redirect to a (temporary, signed) URL
+        # this is especially useful because API Gateway has a body size limitation, and
+        # Kibana serves *huge* blobs of JSON
+
+        # UUID filename (same suffix as original request if possible)
         u = urlparse(target_url)
         if '.' in u.path:
             filename = str(uuid4()) + '.' + u.path.split('.')[-1]
@@ -171,17 +177,23 @@ def proxy_request(path, **kwargs):
         s3_client = boto3.client('s3', config=Config(signature_version='s3v4'))
 
         bucket = s3.Bucket(overflow_bucket)
+
+        # actually put it in the bucket. beware that boto is really noisy for this in debug log level
         obj = bucket.put_object(
             Key=filename,
             Body=content,
             ACL='authenticated-read',
             ContentType=req.headers['content-type']
         )
+
+        # URL only works for 60 seconds
         url = s3_client.generate_presigned_url('get_object', Params = {'Bucket': overflow_bucket, 'Key': filename}, ExpiresIn=60)
 
+        # "see other"
         return redirect(url, 303)
 
     else:
+        # otherwise, just serve it normally
         return Response(content, content_type=req.headers['content-type'])
 
 
