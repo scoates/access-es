@@ -195,7 +195,7 @@ def proxy_request(path, **kwargs):
 
     elif req.headers.get('Location', False):
         response = Response(content)
-        response.status_code = 302
+        response.status_code = req.status_code
         response.headers['Location'] = req.headers.get('Location')
         return response
     else:
