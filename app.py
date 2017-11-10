@@ -154,7 +154,8 @@ def proxy_request(path, **kwargs):
         params=request.query_string,
         data=request.data,
         headers=headers,
-        stream=False
+        stream=False,
+        allow_redirects=False
     )
 
     content = req.content
@@ -192,6 +193,11 @@ def proxy_request(path, **kwargs):
         # "see other"
         return redirect(url, 303)
 
+    elif req.headers.get('Location', False):
+        response = Response(content)
+        response.status_code = 302
+        response.headers['Location'] = req.headers.get('Location')
+        return response
     else:
         # otherwise, just serve it normally
         return Response(content, content_type=req.headers['content-type'])
