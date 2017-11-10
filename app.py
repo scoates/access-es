@@ -193,7 +193,7 @@ def proxy_request(path, **kwargs):
         # "see other"
         return redirect(url, 303)
 
-    elif req.headers.get('Location', False):
+    elif req.headers.get('Location', False) and 300 <= req.status_code < 400:
         response = Response(content)
         response.status_code = req.status_code
         response.headers['Location'] = req.headers.get('Location')
